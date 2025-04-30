@@ -36,49 +36,49 @@ cursor = conn.cursor()
 
 # Create tables
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS youbike_stations (
-        sno TEXT PRIMARY KEY,
-        sna TEXT,
-        sarea TEXT,
-        ar TEXT,
-        sareaen TEXT,
-        snaen TEXT,
-        aren TEXT,
-        latitude REAL,
-        longitude REAL,
-        capacity INTEGER
-    )
+CREATE TABLE IF NOT EXISTS youbike_stations (
+    sno TEXT PRIMARY KEY,
+    sna TEXT,
+    sarea TEXT,
+    ar TEXT,
+    sareaen TEXT,
+    snaen TEXT,
+    aren TEXT,
+    latitude REAL,
+    longitude REAL,
+    capacity INTEGER
+)
 ''')
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS youbike_status (
-        sno TEXT,
-        mday TEXT,
-        available_rent_bikes INTEGER,
-        available_return_bikes INTEGER,
-        PRIMARY KEY (sno, mday),
-        FOREIGN KEY (sno) REFERENCES youbike_stations(sno)
-    )
+CREATE TABLE IF NOT EXISTS youbike_status (
+    sno TEXT,
+    mday TEXT,
+    available_rent_bikes INTEGER,
+    available_return_bikes INTEGER,
+    PRIMARY KEY (sno, mday),
+    FOREIGN KEY (sno) REFERENCES youbike_stations(sno)
+)
 ''')
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS weather (
-        station_name TEXT,
-        observe_time TEXT,
-        temperature REAL,
-        weather TEXT,
-        wind_direction TEXT,
-        wind_speed REAL,
-        gust REAL,
-        visibility TEXT,
-        humidity INTEGER,
-        pressure REAL,
-        rainfall REAL,
-        sunshine TEXT,
-        PRIMARY KEY (station_name, observe_time)
-    )
+CREATE TABLE IF NOT EXISTS weather (
+    station_name TEXT,
+    observe_time TEXT,
+    temperature REAL,
+    weather TEXT,
+    wind_direction TEXT,
+    wind_speed REAL,
+    gust REAL,
+    visibility TEXT,
+    humidity INTEGER,
+    pressure REAL,
+    rainfall REAL,
+    sunshine TEXT,
+    PRIMARY KEY (station_name, observe_time)
+)
 ''')
 conn.commit()
 
-# YouBike data fetch function
+# YouBike data fetch function (only for station 500101022)
 URL = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'
 
 def fetch_youbike_data():
@@ -88,17 +88,19 @@ def fetch_youbike_data():
         data = response.json()
 
         for record in data:
+            if record.get("sno") != "500101022":
+                continue
+
             station_info = (
                 record["sno"], record["sna"], record["sarea"], record["ar"],
                 record["sareaen"], record["snaen"], record["aren"],
                 float(record["latitude"]), float(record["longitude"]), int(record["total"])
             )
-
             cursor.execute('''
-                INSERT OR IGNORE INTO youbike_stations (
-                    sno, sna, sarea, ar, sareaen, snaen, aren, latitude, longitude, capacity
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', station_info)
+INSERT OR IGNORE INTO youbike_stations (
+    sno, sna, sarea, ar, sareaen, snaen, aren, latitude, longitude, capacity
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+''', station_info)
 
             current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             status_info = (
@@ -106,15 +108,14 @@ def fetch_youbike_data():
                 int(record.get("available_rent_bikes", 0)),
                 int(record.get("available_return_bikes", 0))
             )
-
             cursor.execute('''
-                INSERT OR IGNORE INTO youbike_status (
-                    sno, mday, available_rent_bikes, available_return_bikes
-                ) VALUES (?, ?, ?, ?)
-            ''', status_info)
+INSERT OR IGNORE INTO youbike_status (
+    sno, mday, available_rent_bikes, available_return_bikes
+) VALUES (?, ?, ?, ?)
+''', status_info)
 
         conn.commit()
-        logging.info("YouBike data stored successfully.")
+        logging.info("YouBike data stored successfully for station 500101022.")
 
     except requests.RequestException as e:
         logging.error(f"Error fetching YouBike data: {e}")
@@ -123,20 +124,9 @@ def fetch_youbike_data():
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
 
-# Weather data fetch function
+# Weather data fetch function (reverted to original)
 def fetch_weather_data():
     url = "https://www.cwa.gov.tw/V8/E/W/OBS_County.html?ID=63"
-    # options = Options()
-    # options.add_argument("--headless")
-    # options.add_argument("--no-sandbox")
-    # options.add_argument("--disable-dev-shm-usage")
-    # options.add_argument("--disable-blink-features=AutomationControlled")
-    # options.add_argument("--disable-gpu")
-    # options.add_argument("--remote-debugging-port=9222")
-    # options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36")
-
-    # # Specify the path to the ChromeDriver executable
-    # driver = webdriver.Chrome(service=ChromeService(executable_path='/usr/local/bin/chromedriver'), options=options)
 
     try:
         driver.get(url)
@@ -163,7 +153,7 @@ def fetch_weather_data():
                 "humidity": None,
                 "pressure": None,
                 "rainfall": None,
-                "sunshine": None,
+                "sunshine": None
             }
 
             for cell in cells:
@@ -196,13 +186,12 @@ def fetch_weather_data():
                     data["sunshine"] = value
 
             current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
             cursor.execute('''
-                INSERT OR IGNORE INTO weather (
-                    station_name, observe_time, temperature, weather, wind_direction, 
-                    wind_speed, gust, visibility, humidity, pressure, rainfall, sunshine
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
+INSERT OR IGNORE INTO weather (
+    station_name, observe_time, temperature, weather, wind_direction,
+    wind_speed, gust, visibility, humidity, pressure, rainfall, sunshine
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+''', (
                 station,
                 current_timestamp,
                 data["temperature"],
@@ -223,7 +212,7 @@ def fetch_weather_data():
     except Exception as e:
         logging.error(f"Error during weather data scraping: {e}")
 
-
+# Clean temporary files
 def clean_tmp():
     tmp_path = "/tmp"  # Or your custom temp directory
     try:
@@ -236,7 +225,7 @@ def clean_tmp():
 # Scheduling functions
 def schedule_jobs():
     """ Schedules periodic data collection tasks. """
-    schedule.every(10).minutes.do(fetch_youbike_data)
+    schedule.every(1).minutes.do(fetch_youbike_data)
     schedule.every(10).minutes.do(fetch_weather_data)
     schedule.every().day.at("00:00").do(clean_tmp)
 
@@ -246,6 +235,6 @@ def schedule_jobs():
 
 # Main execution
 if __name__ == "__main__":
-    fetch_youbike_data()  # Run immediately once
-    fetch_weather_data()  # Run immediately once
+    fetch_youbike_data()  # Run immediately once for station 500101022
+    fetch_weather_data()  # Run immediately once (all stations)
     schedule_jobs()  # Start periodic execution
